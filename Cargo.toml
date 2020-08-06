@@ -1,0 +1,12 @@
+[package]
+name = "ec21-test"
+version = "0.1.0"
+authors = ["majorz"]
+edition = "2018"
+
+[dependencies]
+serialport = { git = "https://gitlab.com/susurrus/serialport-rs.git" }
+libc = "*"
+anyhow = "*"
+nom = "*"
+num_enum = "*"
