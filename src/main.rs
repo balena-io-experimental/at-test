@@ -9,6 +9,9 @@ use std::str;
 use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
+use std::io::stdin;
+use std::fs::File;
+use std::path::Path;
 
 use num_enum::TryFromPrimitive;
 
@@ -33,6 +36,7 @@ pub enum ResponseTag {
     COPS,
     CEREG,
     CREG,
+    UNKNOWN,
 }
 
 impl FromStr for ResponseTag {
@@ -45,7 +49,7 @@ impl FromStr for ResponseTag {
             "COPS" => ResponseTag::COPS,
             "CEREG" => ResponseTag::CEREG,
             "CREG" => ResponseTag::CREG,
-            _ => return Err(anyhow!("Parsing response flag failed")),
+            _ => ResponseTag::UNKNOWN,
         })
     }
 }
@@ -242,16 +246,42 @@ fn main() -> Result<()> {
 
     cmd(&mut port, "AT+CFUN=0")?;
 
-    sleep(Duration::from_secs(10));
-
-    //    let response = cmd(&mut port, "AT+COPS=?")?;
-    //    println!("{:?}", parse_response(&response));
+    sleep(Duration::from_secs(3));
 
     cmd(&mut port, "AT+COPS?")?;
     cmd(&mut port, "AT+CEREG?")?;
     cmd(&mut port, "AT+CREG?")?;
 
+    create_lock()?;
+
+    println!("Enter SIM and delete lock file");
+
+    let mut locked = true;
+    while locked {
+        locked = lock_exists();
+        sleep(Duration::from_secs(1));
+    }
+
+    cmd(&mut port, "AT+QCFG=\"nwscanmode\",0")?;
+
+    cmd(&mut port, "AT+CFUN=1")?;
+
+    loop {
+        cmd(&mut port, "AT+COPS?")?;
+        cmd(&mut port, "AT+CEREG?")?;
+        cmd(&mut port, "AT+CREG?")?;
+
+        sleep(Duration::from_secs(10));
+    }
+}
+
+fn create_lock() -> Result<()> {
+    File::create("at.lock")?;
     Ok(())
+}
+
+fn lock_exists() -> bool {
+    Path::new("at.lock").exists()
 }
 
 fn echo_off(port: &mut serialport::TTYPort) -> Result<()> {
@@ -264,6 +294,7 @@ fn echo_off(port: &mut serialport::TTYPort) -> Result<()> {
 }
 
 fn cmd(port: &mut serialport::TTYPort, at_cmd: &str) -> Result<ResponseTag> {
+    println!(">>> {}", at_cmd);
     write(port, at_cmd)?;
     read(port)
 }
@@ -277,7 +308,7 @@ fn write(port: &mut serialport::TTYPort, at_cmd: &str) -> Result<()> {
 
 fn read(port: &mut serialport::TTYPort) -> Result<ResponseTag> {
     let res = read_line(port)?;
-    println!(">>> {}", res);
+    println!("<<< {}", res);
     let (_, (tag, values)) = response(&res).map_err(|_| anyhow!("Parsing failed"))?;
     let tag = ResponseTag::from_str(tag)?;
     match tag {
