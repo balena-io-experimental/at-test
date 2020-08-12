@@ -1,0 +1,25 @@
+FROM balenalib/%%BALENA_MACHINE_NAME%%-debian as base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+ENV PATH=/root/.cargo/bin:$PATH
+
+RUN install_packages build-essential curl file
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+WORKDIR /app
+
+COPY . .
+
+WORKDIR /app/qlog
+
+RUN make
+
+WORKDIR /app
+
+RUN install_packages pkg-config libudev-dev
+
+RUN cargo build
+
+CMD ["sleep", "infinity"]
